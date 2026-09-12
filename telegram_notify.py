@@ -1,4 +1,4 @@
-"""Notifikasi Telegram — template bersih & mudah dibaca."""
+"""Notifikasi Telegram — template sesuai desain user."""
 
 from __future__ import annotations
 
@@ -12,6 +12,18 @@ import requests
 log = logging.getLogger(__name__)
 
 API = 'https://api.telegram.org/bot{token}/sendMessage'
+
+BULAN = (
+    '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+)
+
+HARI = {
+    0: 'Senin', 1: 'Selasa', 2: 'Rabu', 3: 'Kamis',
+    4: 'Jumat', 5: 'Sabtu', 6: 'Minggu',
+}
+
+LINK = 'https://simkuliah.usk.ac.id/index.php/absensi'
 
 
 def env_token() -> str:
@@ -51,8 +63,73 @@ def send_message(
         return False
 
 
+def tanggal_indonesia() -> str:
+    from jadwal import _now
+    n = _now()
+    return f'{HARI[n.weekday()]}, {n.day} {BULAN[n.month]} {n.year}'
+
+
 def _jam(s) -> str:
     return (getattr(s, 'jam', '') or '—').replace(' - ', '–')
+
+
+def _status_label(s) -> tuple[str, str]:
+    """Return (icon, short text)."""
+    status = getattr(s, 'status_absen', '') or ''
+    icon = getattr(s, 'status_icon', '⚪') or '⚪'
+    if 'Sudah' in status:
+        return icon, 'Sudah absen'
+    if 'Belum absen' in status or 'bermasalah' in status.lower():
+        return '🔴', 'Belum absen'
+    if 'Belum dilaksanakan' in status or 'menunggu' in status.lower():
+        return '🟡', 'Belum mulai'
+    return icon, status or 'Tidak diketahui'
+
+
+def _mk_title(name: str, limit: int = 48) -> str:
+    name = (name or '').strip()
+    if len(name) <= limit:
+        return name
+    return name[: limit - 1] + '…'
+
+
+def _blok_list(s, no: int) -> str:
+    icon, st = _status_label(s)
+    lines = [f'{no}. {_mk_title(s.mata_kuliah)}']
+    meta = f'🕐 {_jam(s)}'
+    if s.ruang:
+        meta += f' · 📍 {s.ruang}'
+    lines.append(meta)
+    if s.dosen:
+        lines.append(f'👨‍🏫 {s.dosen}')
+    lines.append(f'{icon} {st}')
+    return '\n'.join(lines)
+
+
+def _blok_detail(s) -> str:
+    """Kartu detail (untuk ABSENSI SUDAH DIBUKA, satu/lebih sesi)."""
+    lines = [f'📚 {_mk_title(s.mata_kuliah, 60)}', '']
+    lines.append(f'🕐 {_jam(s)}')
+    if s.ruang:
+        lines.append(f'📍 {s.ruang}')
+    if s.dosen:
+        lines.append(f'👨‍🏫 {s.dosen}')
+    tags = []
+    if s.kode:
+        tags.append(s.kode)
+    if s.kelas:
+        tags.append(f'Kelas {s.kelas}')
+    if s.sks:
+        tags.append(f'{s.sks} SKS')
+    if tags:
+        lines.append('')
+        lines.append(f'🏷️ {" · ".join(tags)}')
+    if s.pertemuan:
+        lines.append(f'📖 Pertemuan ke-{s.pertemuan}')
+    icon, st = _status_label(s)
+    lines.append('')
+    lines.append(f'{icon} {st}')
+    return '\n'.join(lines)
 
 
 def format_absensi(
@@ -63,72 +140,88 @@ def format_absensi(
     sesi: Optional[Sequence] = None,
     mahasiswa: str = '',
 ) -> str:
-    from jadwal import today_label, ringkas_status
+    from jadwal import ringkas_status
 
     sesi = sorted(list(sesi or []), key=lambda x: getattr(x, 'jam_mulai_menit', 0))
-    tgl = today_label()
+    tgl = tanggal_indonesia()
     jam_cek = time.strftime('%H:%M')
+    jam_detik = time.strftime('%H:%M:%S')
 
-    # Header singkat
     if state == 'OPEN':
-        head = '🟢 Absen sudah dibuka'
-        sub = 'Silakan absen sekarang'
-    elif state == 'NOT_OPEN':
-        head = '🔴 Absen belum dibuka'
-        sub = 'Menunggu dosen / jadwal'
-    else:
-        head = '⚪ Status tidak jelas'
-        sub = (detail or 'Cek SIMKULIAH')[:80]
-
-    if changed:
-        head = '⚡ ' + head
-
-    out = [head, sub, f'{tgl} · {jam_cek}']
-    if mahasiswa:
-        out.append(mahasiswa)
-    out.append('')
-
-    if not sesi:
-        out.append('Hari ini tidak ada kuliah.')
-        return '\n'.join(out)
-
-    r = ringkas_status(sesi)
-    summary_bits = []
-    if r['HIJAU']:
-        summary_bits.append(f"{r['HIJAU']} sudah absen")
-    if r['MERAH']:
-        summary_bits.append(f"{r['MERAH']} belum absen")
-    if r['KUNING']:
-        summary_bits.append(f"{r['KUNING']} menunggu")
-    out.append(f"Jadwal hari ini ({len(sesi)})")
-    if summary_bits:
-        out.append(' · '.join(summary_bits))
-    out.append('')
-
-    for i, s in enumerate(sesi, 1):
-        icon = getattr(s, 'status_icon', '⚪') or '⚪'
-        status = getattr(s, 'status_absen', 'Tidak diketahui')
-        # singkatkan status
-        if 'Sudah' in status:
-            status = 'Sudah absen'
-        elif 'Belum absen' in status:
-            status = 'Belum absen'
-        elif 'Belum dilaksanakan' in status:
-            status = 'Belum mulai'
-
-        mk = s.mata_kuliah
-        if len(mk) > 42:
-            mk = mk[:40] + '…'
-
-        block = [
-            f'{i}. {mk}',
-            f'   {_jam(s)}' + (f' · {s.ruang}' if s.ruang else ''),
+        lines = [
+            '🟢 ABSENSI SUDAH DIBUKA',
+            '',
+            'Dosen telah membuka absensi.',
+            '⚡ Segera lakukan absensi di SIMKULIAH.',
+            '',
+            f'📅 {tgl}',
+            f'🕐 Terdeteksi {jam_detik}',
         ]
-        if s.dosen:
-            block.append(f'   {s.dosen}')
-        block.append(f'   {icon} {status}')
-        out.append('\n'.join(block))
-        if i < len(sesi):
-            out.append('')
+        if mahasiswa:
+            lines += ['', f'👤 {mahasiswa}']
+        if not sesi:
+            lines += ['', '📭 Tidak ada mata kuliah terjadwal hari ini.']
+        elif len(sesi) == 1:
+            lines += ['', _blok_detail(sesi[0])]
+        else:
+            r = ringkas_status(sesi)
+            lines += [
+                '',
+                f'📚 Jadwal hari ini — {len(sesi)} mata kuliah',
+            ]
+            bits = []
+            if r['HIJAU']:
+                bits.append(f"🟢 {r['HIJAU']} sudah absen")
+            if r['MERAH']:
+                bits.append(f"🔴 {r['MERAH']} belum absen")
+            if r['KUNING']:
+                bits.append(f"🟡 {r['KUNING']} menunggu")
+            if bits:
+                lines.append(' · '.join(bits))
+            lines.append('')
+            for i, s in enumerate(sesi, 1):
+                lines.append(_blok_list(s, i))
+                if i < len(sesi):
+                    lines.append('')
+    else:
+        # NOT_OPEN / UNKNOWN
+        if state == 'NOT_OPEN':
+            title = '🔴 ABSENSI BELUM DIBUKA'
+            desc = 'Dosen belum membuka absensi atau belum masuk waktu absen.'
+        else:
+            title = '⚪ STATUS ABSENSI TIDAK JELAS'
+            desc = (detail or 'Periksa halaman absensi secara manual.')[:120]
 
-    return '\n'.join(out)
+        lines = [
+            title,
+            '',
+            desc,
+            '',
+            f'📅 {tgl}',
+            f'🕐 Dicek {jam_cek}',
+        ]
+        if not sesi:
+            lines += ['', '📭 Tidak ada mata kuliah terjadwal hari ini.']
+        else:
+            r = ringkas_status(sesi)
+            lines += [
+                '',
+                f'📚 Jadwal hari ini — {len(sesi)} mata kuliah',
+            ]
+            bits = []
+            if r['HIJAU']:
+                bits.append(f"🟢 {r['HIJAU']} sudah absen")
+            if r['MERAH']:
+                bits.append(f"🔴 {r['MERAH']} belum absen")
+            if r['KUNING']:
+                bits.append(f"🟡 {r['KUNING']} menunggu")
+            if bits:
+                lines.append(' · '.join(bits))
+            lines.append('')
+            for i, s in enumerate(sesi, 1):
+                lines.append(_blok_list(s, i))
+                if i < len(sesi):
+                    lines.append('')
+
+    lines += ['', f'🔗 SIMKULIAH\n{LINK}']
+    return '\n'.join(lines)
