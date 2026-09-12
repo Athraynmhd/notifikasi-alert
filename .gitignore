@@ -1,0 +1,49 @@
+# Data & temp
+data/tmp/
+data/glyphs/
+data/glyph_dict.npz
+data/font_cache.npz
+data/*.html
+data/*_dump.txt
+data/oracle_*.txt
+data/tess_dump.txt
+data/verify_dump.txt
+data/charset_probe.txt
+data/clusters_dump.txt
+data/links.txt
+data/struct.txt
+data/js_dump.txt
+data/more_dump.txt
+data/aslab_table.txt
+data/absensi_dump.txt
+data/jadwal_dump.txt
+data/probe_flash.txt
+
+# Secrets / local state
+.env
+.env.*
+.ci_state.json
+*.pem
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+.DS_Store
+.cursor/
+
+# Local scratch
+_*.py

@@ -1,0 +1,65 @@
+name: Absensi Notify
+
+on:
+  schedule:
+    # Setiap 10 menit, Senin–Sabtu, jam 00:00–11:50 UTC ≈ 07:00–18:50 WIB
+    - cron: '*/10 0-11 * * 1-6'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Kirim notifikasi meski status sama'
+        required: false
+        default: 'false'
+        type: boolean
+
+concurrency:
+  group: absensi-notify
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr fonts-dejavu-core
+
+      - name: Install Python deps
+        run: pip install -r requirements.txt
+
+      - name: Restore notify state
+        uses: actions/cache@v4
+        with:
+          path: .ci_state.json
+          key: absensi-state-${{ github.run_id }}
+          restore-keys: |
+            absensi-state-
+
+      - name: Run notify
+        env:
+          SIMKULIAH_USER: ${{ secrets.SIMKULIAH_USER }}
+          SIMKULIAH_PASS: ${{ secrets.SIMKULIAH_PASS }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TESSERACT_PATH: /usr/bin/tesseract
+          NOTIFY_FORCE: ${{ github.event.inputs.force == 'true' && '1' || '0' }}
+          ABSEN_STATE_PATH: .ci_state.json
+        run: python ci_notify.py
+
+      - name: Persist notify state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .ci_state.json
+          key: absensi-state-${{ github.run_id }}
