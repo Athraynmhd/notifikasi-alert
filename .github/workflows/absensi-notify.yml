@@ -39,6 +39,9 @@ jobs:
       - name: Install Python deps
         run: pip install -r requirements.txt
 
+      - name: Unit tests (parser + flow)
+        run: python -m unittest tests.test_production -v
+
       - name: Restore session cache
         uses: actions/cache@v4
         with:
@@ -57,9 +60,14 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TESSERACT_PATH: /usr/bin/tesseract
           NOTIFY_FORCE: ${{ github.event.inputs.force == 'true' && '1' || '0' }}
+          ABSEN_MODE: confirm
+          ABSEN_WAIT_SECONDS: '90'
+          LOGIN_FAIL_ALERT_EVERY: '6'
+          PARSER_UNKNOWN_ALERT: '1'
           ABSEN_STATE_PATH: .ci_state.json
           ABSEN_COOKIES_PATH: .ci_cookies.json
         run: python ci_notify.py
+
 
       - name: Persist session cache
         if: always()

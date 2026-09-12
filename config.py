@@ -83,6 +83,30 @@ CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
 
+# ──────────────────────────────────────────────────────────────
+# Production: absen mode & alerting
+# ──────────────────────────────────────────────────────────────
+# confirm      → kirim tombol, tunggu respon Telegram
+# auto         → absen langsung tanpa konfirmasi
+# notify_only  → kabari saja, tidak absen
+ABSEN_MODES = ('confirm', 'auto', 'notify_only')
+ABSEN_MODE_DEFAULT = 'confirm'
+
+# Alert login gagal: kirim saat streak pertama, lalu tiap N run berturut-turut
+LOGIN_FAIL_ALERT_EVERY = int(os.environ.get('LOGIN_FAIL_ALERT_EVERY', '6'))
+
+# Alert jika status parser UNKNOWN (kemungkinan HTML berubah)
+PARSER_UNKNOWN_ALERT = os.environ.get('PARSER_UNKNOWN_ALERT', '1').strip().lower() not in (
+    '0', 'false', 'no',
+)
+
+# Marker yang diharapkan di halaman /absensi (deteksi drift UI)
+ABSENSI_MARKERS = (
+    'belum masuk waktu absen',
+    'btn-absen',
+    'do_absen',
+)
+
 
 # ──────────────────────────────────────────────────────────────
 # Logging

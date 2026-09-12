@@ -35,6 +35,14 @@ class SIMKULIAH:
         self.base = base_url
         self.session: requests.Session | None = None
         self._ultimate = None
+        # Diisi oleh login() / ensure_login() untuk observability CI
+        self.last_login_stats: dict = {
+            'attempts': 0,
+            'wrong_captcha': 0,
+            'errors': 0,
+            'used_cookies': False,
+            'result': '',
+        }
 
     def _solver(self):
         if self._ultimate is None:
@@ -143,17 +151,35 @@ class SIMKULIAH:
         max_tries: int = LOGIN_MAX_TRIES,
     ) -> bool:
         delay = LOGIN_RETRY_DELAY
+        stats = {
+            'attempts': 0,
+            'wrong_captcha': 0,
+            'errors': 0,
+            'used_cookies': False,
+            'result': '',
+        }
         for i in range(1, max_tries + 1):
             kind, msg = self.login_attempt(username, password)
+            stats['attempts'] = i
             log.info('  [try %d/%d] %s: %s', i, max_tries, kind, msg)
             if kind == 'LOGIN_OK':
+                stats['result'] = 'LOGIN_OK'
+                self.last_login_stats = stats
                 return True
             if kind == 'BAD_CREDS':
+                stats['result'] = 'BAD_CREDS'
+                self.last_login_stats = stats
                 return False
+            if kind == 'WRONG_CAPTCHA':
+                stats['wrong_captcha'] += 1
+            else:
+                stats['errors'] += 1
             time.sleep(min(delay, 5.0))
             delay *= 1.5
 
         log.warning('Login gagal setelah %d percobaan', max_tries)
+        stats['result'] = 'MAX_TRIES'
+        self.last_login_stats = stats
         return False
 
     def logged_in(self) -> bool:
@@ -184,18 +210,90 @@ class SIMKULIAH:
         cookies_path: str | None = None,
     ) -> bool:
         """Reuse cookie jika masih valid; login+CAPTCHA hanya jika perlu."""
+        loaded = False
         if cookies_path:
-            self.load_cookies(cookies_path)
+            loaded = self.load_cookies(cookies_path)
         if self.logged_in():
             log.info('Session masih valid — skip login/CAPTCHA')
+            self.last_login_stats = {
+                'attempts': 0,
+                'wrong_captcha': 0,
+                'errors': 0,
+                'used_cookies': loaded,
+                'result': 'COOKIE_OK',
+            }
             if cookies_path:
                 self.save_cookies(cookies_path)
             return True
         log.info('Session kosong/expired — login ulang')
         ok = self.login(username, password, max_tries=max_tries)
+        self.last_login_stats['used_cookies'] = False
         if ok and cookies_path:
             self.save_cookies(cookies_path)
         return ok
+
+    def do_absen(self) -> tuple[bool, str]:
+        """Submit absensi dari halaman /absensi. Return (success, message)."""
+        if not self.session:
+            return False, 'No session'
+        try:
+            r = self.session.get(self.base + '/absensi', timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        except (requests.ConnectionError, requests.Timeout) as e:
+            return False, f'Gagal fetch /absensi: {e}'
+
+        import re
+
+        def _abs_url(u: str) -> str:
+            if u.startswith('http'):
+                return u
+            return self.base + ('/' + u.lstrip('/') if not u.startswith('/') else u)
+
+        def _verify_absen() -> tuple[bool, str]:
+            """Re-fetch /absensi dan cek apakah status berubah ke hijau."""
+            try:
+                v = self.session.get(self.base + '/absensi', timeout=REQUEST_TIMEOUT, allow_redirects=True)
+                from tool import state_of
+                st, _ = state_of(v.text)
+                if st == 'NOT_OPEN':
+                    return True, 'Absensi tercatat (status: NOT_OPEN / sudah absen)'
+                if 'sudah' in v.text.lower() and 'absen' in v.text.lower():
+                    return True, 'Absensi tercatat (terdeteksi "sudah absen")'
+                return False, f'Status setelah submit: {st} — mungkin belum tercatat'
+            except Exception as e:
+                return False, f'Gagal verifikasi: {e}'
+
+        # Coba form action dulu
+        fm = re.search(r'(<form[^>]*action="([^"]*do_absen[^"]*)"[^>]*>.*?</form>)', r.text, re.I | re.S)
+        if fm:
+            form_html = fm.group(1)
+            url = _abs_url(fm.group(2))
+            hidden = dict(re.findall(
+                r'<input[^>]*name="([^"]+)"[^>]*value="([^"]*)"', form_html,
+            ))
+            try:
+                resp = self.session.post(url, data=hidden, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+                if resp.status_code != 200:
+                    return False, f'HTTP {resp.status_code} dari {url}'
+                return _verify_absen()
+            except (requests.ConnectionError, requests.Timeout) as e:
+                return False, f'Gagal POST absen: {e}'
+
+        # Fallback: link/button href do_absen
+        lm = re.search(r'href="([^"]*do_absen[^"]*)"', r.text, re.I)
+        if not lm:
+            bm = re.search(r'btn-absen[^>]*(?:href|action)="([^"]+)"', r.text, re.I)
+            if not bm:
+                return False, 'Tombol/form absen tidak ditemukan di halaman'
+            lm = bm
+
+        url = _abs_url(lm.group(1))
+        try:
+            resp = self.session.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+            if resp.status_code != 200:
+                return False, f'HTTP {resp.status_code} dari {url}'
+            return _verify_absen()
+        except (requests.ConnectionError, requests.Timeout) as e:
+            return False, f'Gagal request absen: {e}'
 
     def get(self, path: str) -> requests.Response:
         if not self.session:

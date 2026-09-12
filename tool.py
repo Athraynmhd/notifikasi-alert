@@ -237,6 +237,7 @@ def cmd_telegram_test(args: argparse.Namespace) -> None:
             dosen='Prof. Dr. Hizir', jam='16.35 - 18.15', ruang='E.03.04',
             pertemuan=3, hari_tanggal=jadwal.today_label(),
             tanggal=jadwal.today_str(),
+            warna='MERAH', status_absen='Belum absen / bermasalah', status_icon='🔴',
         ),
     ]
     msg_open = tg.format_absensi(
@@ -246,21 +247,89 @@ def cmd_telegram_test(args: argparse.Namespace) -> None:
     msg_empty = tg.format_absensi(
         'NOT_OPEN', 'Belum waktu', changed=False, sesi=[], mahasiswa='',
     )
+
+    # 1) Status OPEN biasa
     ok1 = tg.send_message(msg_open, token=token, chat_id=chat)
     time.sleep(0.4)
+    # 2) Status NOT_OPEN
     ok2 = tg.send_message(msg_empty, token=token, chat_id=chat)
-    if ok1 and ok2:
-        log.info('Tes Telegram: OK (2 template terkirim)')
+    time.sleep(0.4)
+    # 3) Prompt produksi: tombol Absen / Tidak (mode confirm)
+    prompt = msg_open + '\n\n❓ Apakah Anda mau absen sekarang?'
+    msg_id = tg.send_absen_prompt(prompt, token=token, chat_id=chat)
+    ok3 = msg_id is not None
+
+    if ok1 and ok2 and ok3:
+        log.info('Tes Telegram: OK (OPEN + NOT_OPEN + prompt tombol Absen/Tidak)')
+        log.info('Tekan tombol di chat untuk uji — di tes ini tidak akan absen sungguhan.')
     else:
-        log.error('Tes Telegram: GAGAL')
+        log.error('Tes Telegram: GAGAL (open=%s not_open=%s prompt=%s)', ok1, ok2, ok3)
         sys.exit(1)
+
+
+def cmd_telegram_demo(args: argparse.Namespace) -> None:
+    """Simulasi mode confirm: kirim prompt, tunggu tombol, edit balasan (tanpa SIMKULIAH)."""
+    token, chat = _tg_args(args)
+    if not token or not chat:
+        log.error('Butuh TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID')
+        sys.exit(2)
+
+    from jadwal import SesiKuliah
+    contoh = [
+        SesiKuliah(
+            kode='FPPS1001', mata_kuliah='METODE PENELITIAN', kelas='E', sks='2',
+            dosen='Prof. Dr. Hizir', jam='16.35 - 18.15', ruang='E.03.04',
+            pertemuan=3, hari_tanggal=jadwal.today_label(),
+            tanggal=jadwal.today_str(),
+            warna='MERAH', status_absen='Belum absen / bermasalah', status_icon='🔴',
+        ),
+    ]
+    msg = tg.format_absensi(
+        'OPEN', 'Dosen sudah membuka absen', changed=True,
+        sesi=contoh, mahasiswa='Athar Rayyan Muhammad',
+    )
+    prompt = (
+        msg
+        + '\n\n🧪 DEMO SIMULASI (bukan absen sungguhan)'
+        + '\n\n❓ Apakah Anda mau absen sekarang?'
+    )
+    wait_sec = int(getattr(args, 'wait', 90) or 90)
+
+    msg_id = tg.send_absen_prompt(prompt, token=token, chat_id=chat)
+    if not msg_id:
+        log.error('Gagal kirim prompt demo')
+        sys.exit(1)
+
+    log.info('Prompt terkirim. Tekan tombol di Telegram dalam %d detik...', wait_sec)
+    choice = tg.poll_callback(token=token, chat_id=chat, wait_seconds=wait_sec)
+
+    if choice == 'do_absen':
+        result = (
+            '✅ Absensi berhasil!\n\n'
+            'Absensi tercatat (status: NOT_OPEN / sudah absen)\n\n'
+            '🧪 Ini hasil DEMO — SIMKULIAH tidak dihubungi.'
+        )
+        tg.edit_message(msg_id, prompt + f'\n\n{result}', token=token, chat_id=chat)
+        log.info('User pilih ABSEN → balasan sukses (demo)')
+    elif choice == 'skip_absen':
+        tg.edit_message(msg_id, prompt + '\n\n⏭️ Absen dilewati.', token=token, chat_id=chat)
+        log.info('User pilih TIDAK → Absen dilewati')
+    else:
+        tg.edit_message(
+            msg_id, prompt + '\n\n⏰ Tidak ada respon (timeout).',
+            token=token, chat_id=chat,
+        )
+        log.info('Timeout — tidak ada tombol yang ditekan')
 
 
 def main() -> None:
     setup_logging()
 
     ap = argparse.ArgumentParser(description='SIMKULIAH tool + Telegram notify')
-    ap.add_argument('cmd', choices=['login', 'status', 'monitor', 'telegram-test'])
+    ap.add_argument(
+        'cmd',
+        choices=['login', 'status', 'monitor', 'telegram-test', 'telegram-demo'],
+    )
     ap.add_argument('--user', default=os.environ.get('SIMKULIAH_USER', ''))
     ap.add_argument('--pass', dest='password', default=os.environ.get('SIMKULIAH_PASS', ''))
     ap.add_argument('--interval', type=int, default=60)
@@ -269,10 +338,14 @@ def main() -> None:
     ap.add_argument('--notify', action='store_true', help='kirim status ke Telegram')
     ap.add_argument('--telegram-token', default=os.environ.get('TELEGRAM_BOT_TOKEN', ''))
     ap.add_argument('--telegram-chat', default=os.environ.get('TELEGRAM_CHAT_ID', ''))
+    ap.add_argument('--wait', type=int, default=90, help='detik tunggu tombol (telegram-demo)')
     args = ap.parse_args()
 
     if args.cmd == 'telegram-test':
         cmd_telegram_test(args)
+        return
+    if args.cmd == 'telegram-demo':
+        cmd_telegram_demo(args)
         return
 
     if not args.user or not args.password:

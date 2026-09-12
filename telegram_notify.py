@@ -11,7 +11,7 @@ import requests
 
 log = logging.getLogger(__name__)
 
-API = 'https://api.telegram.org/bot{token}/sendMessage'
+API = 'https://api.telegram.org/bot{token}/{method}'
 
 BULAN = (
     '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -46,7 +46,7 @@ def send_message(
         return False
     try:
         r = requests.post(
-            API.format(token=token),
+            API.format(token=token, method='sendMessage'),
             json={
                 'chat_id': chat_id,
                 'text': text,
@@ -225,3 +225,142 @@ def format_absensi(
 
     lines += ['', f'🔗 SIMKULIAH\n{LINK}']
     return '\n'.join(lines)
+
+
+TG_MAX_LEN = 4096
+
+
+def _truncate(text: str) -> str:
+    if len(text) <= TG_MAX_LEN:
+        return text
+    return text[:TG_MAX_LEN - 20] + '\n\n[…dipotong]'
+
+
+def send_absen_prompt(
+    text: str,
+    token: Optional[str] = None,
+    chat_id: Optional[str] = None,
+    timeout: float = 15.0,
+) -> Optional[int]:
+    """Kirim pesan dengan tombol inline Absen/Tidak. Return message_id atau None."""
+    text = _truncate(text)
+    token = (token or env_token()).strip()
+    chat_id = (chat_id or env_chat_id()).strip()
+    if not token or not chat_id:
+        return None
+    keyboard = {
+        'inline_keyboard': [[
+            {'text': '✅ Absen Sekarang', 'callback_data': 'do_absen'},
+            {'text': '❌ Tidak', 'callback_data': 'skip_absen'},
+        ]]
+    }
+    try:
+        r = requests.post(
+            API.format(token=token, method='sendMessage'),
+            json={
+                'chat_id': chat_id,
+                'text': text,
+                'reply_markup': keyboard,
+                'disable_web_page_preview': True,
+            },
+            timeout=timeout,
+        )
+        data = r.json()
+        if data.get('ok'):
+            return data['result']['message_id']
+        log.warning('Telegram prompt gagal: %s', r.text[:200])
+    except requests.RequestException as e:
+        log.warning('Telegram prompt error: %s', e)
+    return None
+
+
+def poll_callback(
+    token: Optional[str] = None,
+    chat_id: Optional[str] = None,
+    wait_seconds: int = 90,
+    poll_interval: float = 3.0,
+) -> Optional[str]:
+    """Poll getUpdates untuk callback_query. Return callback_data atau None."""
+    token = (token or env_token()).strip()
+    chat_id = (chat_id or env_chat_id()).strip()
+    if not token:
+        return None
+
+    # Flush stale updates agar tidak ambil callback dari prompt sebelumnya
+    try:
+        r = requests.get(
+            API.format(token=token, method='getUpdates'),
+            params={'offset': -1, 'limit': 1, 'timeout': 0},
+            timeout=10,
+        )
+        data = r.json()
+        results = data.get('result', [])
+        offset = (results[-1]['update_id'] + 1) if results else None
+    except Exception:
+        offset = None
+
+    deadline = time.time() + wait_seconds
+    while time.time() < deadline:
+        remaining = max(1, int(deadline - time.time()))
+        try:
+            params: dict = {'timeout': min(remaining, 30), 'allowed_updates': '["callback_query"]'}
+            if offset is not None:
+                params['offset'] = offset
+            r = requests.get(
+                API.format(token=token, method='getUpdates'),
+                params=params,
+                timeout=min(remaining, 30) + 10,
+            )
+            data = r.json()
+            for upd in data.get('result', []):
+                offset = upd['update_id'] + 1
+                cb = upd.get('callback_query')
+                if not cb:
+                    continue
+                cb_chat = str(cb.get('message', {}).get('chat', {}).get('id', ''))
+                if chat_id and cb_chat != chat_id:
+                    continue
+                cb_data = cb.get('data', '')
+                # Answer callback to remove loading spinner
+                try:
+                    requests.post(
+                        API.format(token=token, method='answerCallbackQuery'),
+                        json={'callback_query_id': cb['id']},
+                        timeout=5,
+                    )
+                except Exception:
+                    pass
+                if cb_data in ('do_absen', 'skip_absen'):
+                    return cb_data
+        except requests.RequestException as e:
+            log.debug('poll error: %s', e)
+            time.sleep(poll_interval)
+    return None
+
+
+def edit_message(
+    message_id: int,
+    text: str,
+    token: Optional[str] = None,
+    chat_id: Optional[str] = None,
+) -> bool:
+    """Edit pesan yang sudah dikirim (hapus tombol, update teks)."""
+    text = _truncate(text)
+    token = (token or env_token()).strip()
+    chat_id = (chat_id or env_chat_id()).strip()
+    if not token or not chat_id:
+        return False
+    try:
+        r = requests.post(
+            API.format(token=token, method='editMessageText'),
+            json={
+                'chat_id': chat_id,
+                'message_id': message_id,
+                'text': text,
+                'disable_web_page_preview': True,
+            },
+            timeout=10,
+        )
+        return r.json().get('ok', False)
+    except requests.RequestException:
+        return False
