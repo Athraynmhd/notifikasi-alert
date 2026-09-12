@@ -2,9 +2,9 @@ name: Absensi Notify
 
 on:
   schedule:
-    # Setiap 3 menit, Senin–Sabtu, jam 00:00–11:57 UTC ≈ 07:00–18:57 WIB
+    # Setiap 5 menit, Senin–Sabtu, jam 00:00–11:55 UTC ≈ 07:00–18:55 WIB
     # Script hanya notifikasi aktif di jendela jam kuliah (±15 menit)
-    - cron: '*/3 0-11 * * 1-6'
+    - cron: '*/5 0-11 * * 1-6'
   workflow_dispatch:
     inputs:
       force:

@@ -5,7 +5,7 @@ Cek status absensi SIMKULIAH USK dan kirim alert ke Telegram (termasuk jadwal ha
 ## GitHub Actions (jalan otomatis tanpa laptop)
 
 Workflow: `.github/workflows/absensi-notify.yml`  
-Jadwal: tiap **3 menit**, Senin–Sabtu, ±07:00–18:57 WIB.  
+Jadwal: tiap **5 menit**, Senin–Sabtu, ±07:00–18:55 WIB.  
 Notifikasi aktif terutama **di jendela jam kuliah** (±15 menit sebelum mulai sampai selesai).  
 Setiap run mencoba **reuse cookie session**; login+CAPTCHA hanya jika cookie expired.  
 Telegram **hanya jika status berubah** (mis. dosen buka absen / warna jadwal berubah). Setelah status stabil, **tidak spam**.
