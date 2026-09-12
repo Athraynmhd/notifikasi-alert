@@ -1,4 +1,9 @@
-"""CI entry: cek absensi + kirim Telegram hanya jika status berubah."""
+"""CI entry: cek absensi + kirim Telegram hanya jika status berubah.
+
+- Cron tiap 5 menit
+- Fokus di jendela jam kuliah (±15 menit sebelum mulai s/d selesai)
+- Tidak spam: hanya saat fingerprint berubah
+"""
 
 from __future__ import annotations
 
@@ -7,6 +12,7 @@ import logging
 import os
 import sys
 
+import jadwal
 import simkuliah
 import telegram_notify as tg
 from config import setup_logging
@@ -16,6 +22,7 @@ log = logging.getLogger(__name__)
 
 STATE_PATH = os.environ.get('ABSEN_STATE_PATH', '.ci_state.json')
 COOKIES_PATH = os.environ.get('ABSEN_COOKIES_PATH', '.ci_cookies.json')
+BUFFER_MENIT = int(os.environ.get('CLASS_BUFFER_MINUTES', '15'))
 
 
 def load_state() -> dict:
@@ -33,12 +40,12 @@ def save_state(data: dict) -> None:
 
 def fingerprint(info: dict) -> str:
     a = info.get('absensi', {})
-    jadwal = info.get('jadwal_hari_ini', [])
+    jadwal_list = info.get('jadwal_hari_ini', [])
     parts = [
         a.get('state', ''),
         *(
             f"{j.get('kode')}|{j.get('warna')}|{j.get('jam')}|{j.get('status_absen')}"
-            for j in jadwal
+            for j in jadwal_list
         ),
     ]
     return '||'.join(parts)
@@ -59,7 +66,6 @@ def main() -> int:
         log.error('TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID wajib di Secrets')
         return 2
 
-    # Linux CI defaults
     os.environ.setdefault('TESSERACT_PATH', '/usr/bin/tesseract')
 
     c = simkuliah.SIMKULIAH()
@@ -83,9 +89,17 @@ def main() -> int:
     prev = load_state()
     changed = force or (prev.get('fingerprint') != fp)
 
-    log.info('state=%s sesi=%d changed=%s', a.get('state'), len(sesi), changed)
+    in_window = jadwal.dalam_jendela_kuliah(sesi, buffer_menit=BUFFER_MENIT)
+    # Tidak ada kuliah hari ini: boleh kirim 1x (fingerprint), lalu diam
+    no_class_today = len(sesi) == 0
+    allow_notify = force or in_window or no_class_today
 
-    if changed:
+    log.info(
+        'state=%s sesi=%d changed=%s in_window=%s',
+        a.get('state'), len(sesi), changed, in_window,
+    )
+
+    if changed and allow_notify:
         msg = tg.format_absensi(
             a['state'], a.get('detail', ''),
             changed=bool(prev.get('fingerprint')),
@@ -96,6 +110,8 @@ def main() -> int:
             log.error('Gagal kirim Telegram')
             return 1
         log.info('Telegram terkirim')
+    elif changed and not allow_notify:
+        log.info('Ada perubahan tapi di luar jam kuliah — simpan state, skip Telegram')
     else:
         log.info('Tidak ada perubahan — skip notifikasi')
 
@@ -103,6 +119,7 @@ def main() -> int:
         'fingerprint': fp,
         'state': a.get('state'),
         'sesi': len(sesi),
+        'in_window': in_window,
     })
     return 0
 

@@ -54,6 +54,16 @@ class SesiKuliah:
             return 10**9
         return int(m.group(1)) * 60 + int(m.group(2))
 
+    @property
+    def jam_selesai_menit(self) -> int:
+        """Akhir sesi dari rentang '08.00 - 10.30'."""
+        parts = re.findall(r'(\d{1,2})[.:](\d{2})', self.jam or '')
+        if len(parts) >= 2:
+            return int(parts[1][0]) * 60 + int(parts[1][1])
+        if len(parts) == 1:
+            return self.jam_mulai_menit + 120  # fallback 2 jam
+        return 10**9
+
 
 def _now() -> datetime:
     return datetime.now(TZ) if TZ else datetime.now()
@@ -173,3 +183,24 @@ def ringkas_status(sesi: List[SesiKuliah]) -> dict:
         else:
             c['LAIN'] += 1
     return c
+
+
+def menit_sekarang() -> int:
+    n = _now()
+    return n.hour * 60 + n.minute
+
+
+def dalam_jendela_kuliah(
+    sesi: List[SesiKuliah],
+    buffer_menit: int = 15,
+) -> bool:
+    """True jika sekarang di dalam salah satu jam kuliah (± buffer sebelum mulai)."""
+    if not sesi:
+        return False
+    now = menit_sekarang()
+    for s in sesi:
+        mulai = s.jam_mulai_menit - buffer_menit
+        selesai = s.jam_selesai_menit
+        if mulai <= now <= selesai:
+            return True
+    return False

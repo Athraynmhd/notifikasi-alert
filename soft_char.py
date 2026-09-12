@@ -9,7 +9,7 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
-from config import CELL_H, CELL_W, DICT_JSON, DATA_DIR
+from config import DICT_JSON, DATA_DIR
 from font_solver import to_cell
 
 log = logging.getLogger(__name__)
