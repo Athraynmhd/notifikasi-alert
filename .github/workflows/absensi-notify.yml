@@ -2,8 +2,8 @@ name: Absensi Notify
 
 on:
   schedule:
-    # Setiap 10 menit, Senin–Sabtu, jam 00:00–11:50 UTC ≈ 07:00–18:50 WIB
-    - cron: '*/10 0-11 * * 1-6'
+    # Setiap 5 menit, Senin–Sabtu, jam 00:00–11:55 UTC ≈ 07:00–18:55 WIB
+    - cron: '*/5 0-11 * * 1-6'
   workflow_dispatch:
     inputs:
       force:
