@@ -46,5 +46,5 @@ Thumbs.db
 .DS_Store
 .cursor/
 
-# Local scratch
-_*.py
+# Local scratch (hanya di root; jangan ignore __init__.py di package)
+/_*.py

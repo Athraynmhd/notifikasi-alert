@@ -8,6 +8,10 @@ from __future__ import annotations
 import sys
 import time
 from collections import Counter
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import scripts.repo_path  # noqa: F401
 
 import simkuliah
 from config import setup_logging

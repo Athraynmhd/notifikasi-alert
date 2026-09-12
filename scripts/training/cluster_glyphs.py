@@ -1,9 +1,15 @@
 import json
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import scripts.repo_path  # noqa: F401
+
 import numpy as np
 from PIL import Image
 from font_solver import to_cell, iou
 import datadir
-import os
 
 THRESH = 0.50
 

@@ -8,7 +8,7 @@ Alur:
 5. Merge ke glyph_dict.json
 
 Usage:
-  python harvest_labels.py 40
+  python scripts/training/harvest_labels.py 40
 """
 
 from __future__ import annotations
@@ -18,6 +18,10 @@ import logging
 import sys
 import time
 from collections import defaultdict
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import scripts.repo_path  # noqa: F401
 
 import numpy as np
 

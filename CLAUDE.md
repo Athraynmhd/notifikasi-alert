@@ -1,5 +1,8 @@
 # SIMKULIAH Auto-Absensi System
 
+> **Agent / sesi berikutnya:** baca dulu [`HANDOFF.md`](HANDOFF.md) — record keputusan produksi, hasil tes, larangan, dan status terkini.  
+> File ini (`CLAUDE.md`) = peta arsitektur & detail modul.
+
 ## Apa Ini?
 
 Sistem otomatis untuk absensi kuliah di **SIMKULIAH USK** (Universitas Syiah Kuala).
@@ -16,44 +19,52 @@ dan mengirim notifikasi ke Telegram — termasuk fitur absen langsung dari Teleg
 ```
 D:\learn\absen\
 │
+├── README.md                 # Panduan singkat user
+├── HANDOFF.md                # Record keputusan + status untuk agent berikutnya
+├── CLAUDE.md                 # Dokumen arsitektur lengkap (file ini)
+├── requirements.txt
+├── .gitignore
+│
+│   ── ENTRY PRODUKSI (tetap di root; CI memanggil ini) ──
 ├── config.py                 # Konstanta terpusat (URL, threshold, path)
+├── ci_notify.py              # CI entrypoint: cron GitHub Actions
+├── tool.py                   # CLI: login/status/monitor/telegram-test/telegram-demo
 │
-│   ── CAPTCHA SOLVING PIPELINE ──
+│   ── RUNTIME: CAPTCHA ──
 ├── captcha_utils.py          # Session HTTP, fetch CAPTCHA, segmentasi glyph
-├── solver_ocr.py             # Solver via Tesseract OCR (multi-resep voting)
-├── font_solver.py            # Solver via font rendering + IoU matching
-├── captcha_solver.py         # GlyphSolver: template matching dari glyph_dict.json
-├── soft_char.py              # SoftmaxChar: mini logistic regression classifier
-├── char_solver.py            # UltimateSolver: ensemble semua solver di atas
+├── solver_ocr.py             # Tesseract OCR (multi-resep voting)
+├── font_solver.py            # Font rendering + IoU (juga dipakai synth)
+├── captcha_solver.py         # GlyphSolver: template matching glyph_dict.json
+├── soft_char.py              # SoftmaxChar classifier
+├── char_solver.py            # UltimateSolver ensemble (dipakai login)
+├── datadir.py                # Alias path → config.py (compat script lama)
 │
-│   ── HTTP CLIENT ──
-├── simkuliah.py              # SIMKULIAH class: login, session, cookie, do_absen
+│   ── RUNTIME: SIMKULIAH + TELEGRAM ──
+├── simkuliah.py              # Login, cookie, do_absen
+├── jadwal.py                 # Parser jadwal + warna status
+├── telegram_notify.py        # Kirim pesan + inline keyboard + poll callback
+├── absen_flow.py             # Mode confirm/auto/notify_only, metrics, alert
 │
-│   ── JADWAL & STATUS ──
-├── jadwal.py                 # Parser jadwal kuliah + warna status absensi
-├── tool.py                   # CLI entrypoint: login/status/monitor/telegram-test
+│   ── SCRIPTS (bukan cron; jalankan manual dari root) ──
+├── scripts/
+│   ├── README.md
+│   ├── repo_path.py          # sys.path → project root
+│   ├── training/             # Latih / panen template CAPTCHA
+│   │   ├── collect_more.py
+│   │   ├── cluster_glyphs.py
+│   │   ├── build_dict.py
+│   │   ├── harvest_labels.py
+│   │   └── synth_dict.py
+│   └── measure/              # Ukur akurasi solver
+│       ├── oracle_test.py
+│       ├── measure_multi.py
+│       ├── measure_bypass.py
+│       └── test_opt.py
 │
-│   ── TELEGRAM ──
-├── telegram_notify.py        # Kirim notifikasi + inline keyboard + poll callback
-├── absen_flow.py             # Orchestration production: mode, metrics, alert, absen
-├── ci_notify.py              # CI entrypoint: cron job GitHub Actions
-│
-│   ── DATA COLLECTION (untuk melatih solver) ──
-├── collect_more.py           # Kumpulkan glyph mentah dari CAPTCHA
-├── cluster_glyphs.py         # Klaster glyph serupa via IoU
-├── build_dict.py             # Bangun glyph_dict.json dari klaster berlabel
-├── harvest_labels.py         # Auto-harvest label benar via dummy login
-├── synth_dict.py             # Tambah template sintetis dari system font
-├── datadir.py                # Alias path backward-compat → config.py
-│
-│   ── TESTING & MEASUREMENT ──
-├── oracle_test.py            # Online test akurasi GlyphSolver (dummy creds)
-├── measure_multi.py          # Ukur multi-strategi (OCR voting)
-├── measure_bypass.py         # Ukur bypass rate UltimateSolver
-├── test_opt.py               # Test lokal self-match + opsional online
-├── tests/                    # Unit tests production (parser + flow, no network)
+│   ── TESTS ──
+├── tests/
 │   ├── test_production.py
-│   └── fixtures_absensi.py   # HTML fixtures state_of()
+│   └── fixtures_absensi.py
 │
 │   ── CI/CD ──
 ├── .github/workflows/
@@ -61,21 +72,23 @@ D:\learn\absen\
 │
 │   ── DATA ──
 ├── data/
-│   ├── glyph_dict.json       # ~3MB, 17 karakter, 80 template/karakter
-│   ├── glyph_meta.json       # Metadata glyph yang dikumpulkan
-│   ├── cluster_assign.json   # Mapping file → cluster ID
-│   ├── best_fonts.json       # Top 5 font yang cocok (tahoma, lucon, dll)
-│   ├── soft_char.npz         # Model softmax terlatih
-│   ├── font_cache.npz        # Cache rendered font templates
+│   ├── glyph_dict.json       # ~3MB, 17 karakter, ~80 template/karakter
+│   ├── glyph_meta.json
+│   ├── cluster_assign.json
+│   ├── best_fonts.json
+│   ├── soft_char.npz
+│   ├── font_cache.npz
 │   ├── glyphs/               # (gitignored) PNG glyph mentah
-│   └── tmp/                  # (gitignored) temp file OCR
+│   └── tmp/                  # (gitignored) temp OCR
 │
-│   ── LAINNYA ──
-├── archive/                  # Script eksplorasi/probe lama (tidak dipakai)
-├── requirements.txt          # requests, Pillow, numpy
-├── .gitignore
-└── .ci_cookies.json          # Cookie session CI (gitignored runtime)
+│   ── DOCS / ARCHIVE ──
+├── docs/
+│   └── security_research.md  # Catatan riset (bukan runtime)
+├── archive/                  # Probe lama — TIDAK dipakai produksi
+└── .ci_cookies.json          # Runtime CI only (gitignored)
 ```
+
+**Prinsip struktur:** entry + modul runtime di root (import sederhana untuk CI); skrip training/measure di `scripts/`; dokumen agent di root (`CLAUDE.md`, `HANDOFF.md`).
 
 ---
 
@@ -410,12 +423,17 @@ export TELEGRAM_BOT_TOKEN=xxx TELEGRAM_CHAT_ID=yyy
 python tool.py telegram-test
 
 # Test CAPTCHA solver
-python test_opt.py              # lokal
-python test_opt.py --online 8   # online dengan dummy creds
+python scripts/measure/test_opt.py              # lokal
+python scripts/measure/test_opt.py --online 8   # online dengan dummy creds
+
+# Training CAPTCHA (opsional)
+python scripts/training/harvest_labels.py 40
+python scripts/training/synth_dict.py
 ```
 
 ### CI (GitHub Actions)
-Otomatis via cron. Manual trigger: workflow_dispatch dengan `force=true` dan/atau `absen_mode`.
+Otomatis via cron. Manual trigger: workflow_dispatch dengan `force=true`.
+`ABSEN_MODE` dikunci `confirm` di workflow (jangan diubah ke auto tanpa izin user).
 
 Secrets yang dibutuhkan di GitHub:
 - `SIMKULIAH_USER`

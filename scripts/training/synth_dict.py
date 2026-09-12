@@ -6,7 +6,7 @@
 4. Merge ke glyph_dict (harvest tetap diprioritaskan)
 
 Usage:
-  python synth_dict.py
+  python scripts/training/synth_dict.py
 """
 
 from __future__ import annotations
@@ -14,7 +14,12 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import scripts.repo_path  # noqa: F401
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps

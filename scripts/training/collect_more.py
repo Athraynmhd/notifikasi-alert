@@ -1,4 +1,10 @@
 import sys, time, json, os
+from pathlib import Path
+
+# Bootstrap project root (jalankan dari repo root / path apa pun)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import scripts.repo_path  # noqa: F401
+
 import numpy as np
 from PIL import Image
 import captcha_utils as cu

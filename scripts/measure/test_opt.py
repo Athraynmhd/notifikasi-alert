@@ -1,14 +1,19 @@
 """Uji lokal + online (dummy creds) untuk solver yang dioptimasi.
 
 Usage:
-  python test_opt.py           # lokal saja
-  python test_opt.py --online 8
+  python scripts/measure/test_opt.py           # lokal saja
+  python scripts/measure/test_opt.py --online 8
 """
 
 from __future__ import annotations
 
 import argparse
+import sys
 import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import scripts.repo_path  # noqa: F401
 
 import numpy as np
 
