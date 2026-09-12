@@ -1,6 +1,6 @@
 """CI entry: cek absensi + kirim Telegram hanya jika status berubah.
 
-- Cron tiap 5 menit
+- Cron tiap 3 menit
 - Fokus di jendela jam kuliah (±15 menit sebelum mulai s/d selesai)
 - Tidak spam: hanya saat fingerprint berubah
 """
