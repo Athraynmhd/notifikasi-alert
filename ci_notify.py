@@ -15,6 +15,7 @@ from tool import report
 log = logging.getLogger(__name__)
 
 STATE_PATH = os.environ.get('ABSEN_STATE_PATH', '.ci_state.json')
+COOKIES_PATH = os.environ.get('ABSEN_COOKIES_PATH', '.ci_cookies.json')
 
 
 def load_state() -> dict:
@@ -62,7 +63,12 @@ def main() -> int:
     os.environ.setdefault('TESSERACT_PATH', '/usr/bin/tesseract')
 
     c = simkuliah.SIMKULIAH()
-    ok = c.ensure_login(user, password, max_tries=int(os.environ.get('LOGIN_MAX_TRIES', '15')))
+    ok = c.ensure_login(
+        user,
+        password,
+        max_tries=int(os.environ.get('LOGIN_MAX_TRIES', '15')),
+        cookies_path=COOKIES_PATH,
+    )
     if not ok:
         tg.send_message(
             '⚠️ SIMKULIAH login gagal (CI). Cek kredensial / CAPTCHA.',

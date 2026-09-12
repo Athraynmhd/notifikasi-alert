@@ -23,6 +23,7 @@ data/probe_flash.txt
 .env
 .env.*
 .ci_state.json
+.ci_cookies.json
 *.pem
 
 # Python

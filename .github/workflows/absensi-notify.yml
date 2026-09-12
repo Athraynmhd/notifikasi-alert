@@ -38,13 +38,15 @@ jobs:
       - name: Install Python deps
         run: pip install -r requirements.txt
 
-      - name: Restore notify state
+      - name: Restore session cache
         uses: actions/cache@v4
         with:
-          path: .ci_state.json
-          key: absensi-state-${{ github.run_id }}
+          path: |
+            .ci_state.json
+            .ci_cookies.json
+          key: absensi-session-${{ github.run_id }}
           restore-keys: |
-            absensi-state-
+            absensi-session-
 
       - name: Run notify
         env:
@@ -55,11 +57,14 @@ jobs:
           TESSERACT_PATH: /usr/bin/tesseract
           NOTIFY_FORCE: ${{ github.event.inputs.force == 'true' && '1' || '0' }}
           ABSEN_STATE_PATH: .ci_state.json
+          ABSEN_COOKIES_PATH: .ci_cookies.json
         run: python ci_notify.py
 
-      - name: Persist notify state
+      - name: Persist session cache
         if: always()
         uses: actions/cache/save@v4
         with:
-          path: .ci_state.json
-          key: absensi-state-${{ github.run_id }}
+          path: |
+            .ci_state.json
+            .ci_cookies.json
+          key: absensi-session-${{ github.run_id }}

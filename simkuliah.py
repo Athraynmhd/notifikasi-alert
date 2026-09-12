@@ -6,11 +6,14 @@ satu tebakan terbaik per attempt (bukan multi-candidate).
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import time
 from typing import Optional, Tuple
 
 import requests
+from requests.utils import cookiejar_from_dict, dict_from_cookiejar
 
 import captcha_utils as cu
 import solver_ocr
@@ -19,6 +22,7 @@ from config import (
     REQUEST_TIMEOUT,
     LOGIN_MAX_TRIES,
     LOGIN_RETRY_DELAY,
+    USER_AGENT,
 )
 
 log = logging.getLogger(__name__)
@@ -41,6 +45,42 @@ class SIMKULIAH:
                 log.warning('UltimateSolver unavailable (%s) — OCR only', e)
                 self._ultimate = False
         return self._ultimate if self._ultimate is not False else None
+
+    def _ensure_session(self) -> requests.Session:
+        if self.session is None:
+            self.session = cu.new_session()
+        return self.session
+
+    def save_cookies(self, path: str) -> None:
+        """Simpan cookie session ke file (untuk reuse antar CI run)."""
+        if not self.session:
+            return
+        data = {
+            'cookies': dict_from_cookiejar(self.session.cookies),
+            'saved_at': time.time(),
+        }
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+
+    def load_cookies(self, path: str) -> bool:
+        """Muat cookie dari file. Return True jika file ada & terisi."""
+        if not os.path.exists(path):
+            return False
+        try:
+            with open(path, encoding='utf-8') as f:
+                data = json.load(f)
+            cookies = data.get('cookies') or {}
+            if not cookies:
+                return False
+            s = self._ensure_session()
+            s.cookies = cookiejar_from_dict(cookies)
+            s.headers.update({'User-Agent': USER_AGENT})
+            age = time.time() - float(data.get('saved_at') or 0)
+            log.info('Cookie dimuat dari %s (umur %.0f menit)', path, age / 60)
+            return True
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as e:
+            log.warning('Gagal load cookie: %s', e)
+            return False
 
     def _new(self):
         self.session = cu.new_session()
@@ -141,11 +181,21 @@ class SIMKULIAH:
         username: str,
         password: str,
         max_tries: int = LOGIN_MAX_TRIES,
+        cookies_path: str | None = None,
     ) -> bool:
+        """Reuse cookie jika masih valid; login+CAPTCHA hanya jika perlu."""
+        if cookies_path:
+            self.load_cookies(cookies_path)
         if self.logged_in():
-            log.debug('Session masih valid — skip login')
+            log.info('Session masih valid — skip login/CAPTCHA')
+            if cookies_path:
+                self.save_cookies(cookies_path)
             return True
-        return self.login(username, password, max_tries=max_tries)
+        log.info('Session kosong/expired — login ulang')
+        ok = self.login(username, password, max_tries=max_tries)
+        if ok and cookies_path:
+            self.save_cookies(cookies_path)
+        return ok
 
     def get(self, path: str) -> requests.Response:
         if not self.session:

@@ -6,7 +6,7 @@ Cek status absensi SIMKULIAH USK dan kirim alert ke Telegram (termasuk jadwal ha
 
 Workflow: `.github/workflows/absensi-notify.yml`  
 Jadwal: tiap **5 menit**, Senin–Sabtu, ±07:00–18:55 WIB.  
-Setiap run CI **login ulang** (mesin baru, tidak menyimpan cookie). Telegram hanya jika status berubah.
+Setiap run CI mencoba **reuse cookie session** dulu; login+CAPTCHA hanya jika cookie expired. Telegram hanya jika status berubah.
 
 ### Secrets (Settings → Secrets and variables → Actions)
 
