@@ -4,7 +4,7 @@
 > Dokumen arsitektur modul-per-modul ada di `CLAUDE.md`.  
 > File ini = **status produksi + keputusan produk + hasil tes + larangan**, supaya agent sesi berikut tidak mengulang kerja atau merusak flow yang sudah disepakati.
 
-**Terakhir diperbarui:** 2026-09-13 (WIB) — termasuk rapikan struktur folder `scripts/` + `docs/`  
+**Terakhir diperbarui:** 2026-09-17 (WIB) — produksi pindah ke Task Scheduler lokal; cron GH off  
 **Repo GitHub:** https://github.com/Athraynmhd/notifikasi-alert  
 **Branch:** `main`  
 **Commit handoff awal harden:** `0db1293`  
@@ -26,9 +26,12 @@ Otomasi absensi kuliah di **SIMKULIAH USK**: solve CAPTCHA login → cek status 
 |-----------|--------|--------|
 | Channel notifikasi | **Telegram saja** | User menolak ntfy/SMS untuk sekarang |
 | Mode absen CI | **`confirm` hardcode** di workflow | User **tidak mau full auto**; absen hanya jika tekan tombol di Telegram |
+| Runtime produksi | **Windows Task Scheduler lokal** | GitHub-hosted runner **timeout** ke simkuliah.usk.ac.id (Sep 2026) |
+| Cron GitHub Actions | **Dimatikan** (manual `workflow_dispatch` saja) | Diganti `scripts/local_notify.ps1` |
 | ntfy (`REF/ntfy`) | **Tidak diintegrasikan** | Hanya referensi; bukan SMS; tidak ganti tombol confirm |
 | Multi-user | Belum | Single NIM via secrets |
 | Database / web server | Tidak ada | Script + JSON state + cookie file saja |
+| Rotate secret setelah bocor chat | **User menolak** (tetap pakai yang ada) | Keputusan user 2026-09-17 |
 
 ### Mode absen (kode mendukung 3, produksi pakai 1)
 

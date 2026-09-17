@@ -18,10 +18,14 @@ data/aslab_table.txt
 data/absensi_dump.txt
 data/jadwal_dump.txt
 data/probe_flash.txt
+data/local_notify.log
+data/local_notify_stdout.txt
+data/local_notify_stderr.txt
 
 # Secrets / local state
 .env
 .env.*
+!.env.example
 .ci_state.json
 .ci_cookies.json
 *.pem

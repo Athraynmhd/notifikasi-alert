@@ -1,10 +1,10 @@
 name: Absensi Notify
 
 on:
-  schedule:
-    # Setiap 5 menit, Senin–Sabtu, jam 00:00–11:55 UTC ≈ 07:00–18:55 WIB
-    # Script hanya notifikasi aktif di jendela jam kuliah (±15 menit)
-    - cron: '*/5 0-11 * * 1-6'
+  # Cron GitHub DINONAKTIFKAN: runner GitHub timeout ke simkuliah.usk.ac.id.
+  # Produksi jalan via Windows Task Scheduler lokal (scripts/local_notify.ps1).
+  # schedule:
+  #   - cron: '*/5 0-11 * * 1-6'
   workflow_dispatch:
     inputs:
       force:
@@ -67,7 +67,6 @@ jobs:
           ABSEN_STATE_PATH: .ci_state.json
           ABSEN_COOKIES_PATH: .ci_cookies.json
         run: python ci_notify.py
-
 
       - name: Persist session cache
         if: always()

@@ -16,15 +16,17 @@ Absen hanya setelah Anda tekan tombol **Absen Sekarang** di Telegram (mode `conf
 | `docs/` | Catatan riset tambahan |
 | `HANDOFF.md` / `CLAUDE.md` | Panduan agent & arsitektur |
 
-## GitHub Actions (jalan otomatis tanpa laptop)
+## GitHub Actions
 
-Workflow: `.github/workflows/absensi-notify.yml`  
-Jadwal: tiap **5 menit**, Senin–Sabtu, ±07:00–18:55 WIB.  
-Notifikasi aktif terutama **di jendela jam kuliah** (±15 menit sebelum mulai sampai selesai).  
-Setiap run mencoba **reuse cookie session**; login+CAPTCHA hanya jika cookie expired.  
-Telegram **hanya jika status berubah** (mis. dosen buka absen / warna jadwal berubah). Setelah status stabil, **tidak spam**.
+Cron **dimatikan** (GitHub runner tidak bisa reach SIMKULIAH USK).  
+Manual: **Actions → Absensi Notify → Run workflow** (opsional).
 
-### Secrets (Settings → Secrets and variables → Actions)
+**Produksi harian:** Windows Task Scheduler `SIMKULIAH-Absensi-Notify`  
+- Script: `scripts/local_notify.ps1`  
+- Secrets: file `.env` di root (lihat `.env.example`)  
+- Pasang ulang: `powershell -File scripts/install_local_task.ps1`
+
+### Secrets GitHub (opsional, untuk manual workflow)
 
 | Name | Isi |
 |---|---|
@@ -32,8 +34,6 @@ Telegram **hanya jika status berubah** (mis. dosen buka absen / warna jadwal ber
 | `SIMKULIAH_PASS` | Password |
 | `TELEGRAM_BOT_TOKEN` | Token bot dari BotFather |
 | `TELEGRAM_CHAT_ID` | Chat ID Telegram |
-
-Setelah secrets diisi: **Actions → Absensi Notify → Run workflow** (centang force untuk tes pertama).
 
 ## Lokal
 
