@@ -1,0 +1,17 @@
+name: Probe SIMKULIAH reachability
+
+# Diagnostic only — cek apakah runner GitHub bisa reach SIMKULIAH
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: DNS + curl SIMKULIAH
+        run: |
+          set -x
+          getent hosts simkuliah.usk.ac.id || true
+          curl -vI --connect-timeout 15 --max-time 30 https://simkuliah.usk.ac.id/index.php/login || true
+          curl -sS --connect-timeout 15 --max-time 30 -o /tmp/login.html -w "http_code=%{http_code} time=%{time_total}\n" https://simkuliah.usk.ac.id/index.php/login || true
+          head -c 200 /tmp/login.html || true
