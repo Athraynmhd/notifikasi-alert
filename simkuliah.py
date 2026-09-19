@@ -23,6 +23,8 @@ from config import (
     LOGIN_MAX_TRIES,
     LOGIN_RETRY_DELAY,
     USER_AGENT,
+    CAPTCHA_SOLVER,
+    GEMINI_API_KEY,
 )
 
 log = logging.getLogger(__name__)
@@ -35,6 +37,7 @@ class SIMKULIAH:
         self.base = base_url
         self.session: requests.Session | None = None
         self._ultimate = None
+        self._last_captcha_png: bytes | None = None
         # Diisi oleh login() / ensure_login() untuk observability CI
         self.last_login_stats: dict = {
             'attempts': 0,
@@ -42,6 +45,7 @@ class SIMKULIAH:
             'errors': 0,
             'used_cookies': False,
             'result': '',
+            'solver': CAPTCHA_SOLVER,
         }
 
     def _solver(self):
@@ -93,19 +97,38 @@ class SIMKULIAH:
     def _new(self):
         self.session = cu.new_session()
         png = cu.fetch_captcha(self.session, base=self.base)
+        self._last_captcha_png = png
         return cu.read_rgb(png)
 
     def best_captcha(self, img) -> Optional[str]:
-        """Satu tebakan terbaik via UltimateSolver (glyph+font+kNN+OCR)."""
-        s = self._solver()
-        if s is not None:
+        """Satu tebakan terbaik. Default: Gemini Vision, fallback lokal."""
+        mode = (CAPTCHA_SOLVER or 'gemini').lower()
+        png = self._last_captcha_png
+
+        if mode in ('gemini', 'auto') and png and GEMINI_API_KEY:
             try:
-                g = s.best_guess(img)
+                import solver_gemini
+                g = solver_gemini.best_guess(png)
                 if g:
                     return g
+                log.info('Gemini tidak menghasilkan tebakan — fallback lokal')
             except Exception as e:
-                log.debug('ultimate fail: %s', e)
-        return solver_ocr.best_guess(img)
+                log.warning('Gemini solver error: %s — fallback lokal', e)
+            if mode == 'gemini':
+                # Tetap fallback lokal agar login tidak macet total
+                pass
+
+        if mode in ('local', 'auto', 'gemini'):
+            s = self._solver()
+            if s is not None:
+                try:
+                    g = s.best_guess(img)
+                    if g:
+                        return g
+                except Exception as e:
+                    log.debug('ultimate fail: %s', e)
+            return solver_ocr.best_guess(img)
+        return None
 
     def _post_login(self, username: str, password: str, guess: str) -> Tuple[str, str]:
         try:

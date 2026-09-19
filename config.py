@@ -83,6 +83,12 @@ CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
 
+# Gemini Vision CAPTCHA (primary solver)
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.1-flash-lite').strip()
+# gemini | local | auto  (auto = gemini dulu, fallback lokal)
+CAPTCHA_SOLVER = os.environ.get('CAPTCHA_SOLVER', 'gemini').strip().lower()
+
 # ──────────────────────────────────────────────────────────────
 # Production: absen mode & alerting
 # ──────────────────────────────────────────────────────────────

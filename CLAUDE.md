@@ -32,11 +32,12 @@ D:\learn\absen\
 │
 │   ── RUNTIME: CAPTCHA ──
 ├── captcha_utils.py          # Session HTTP, fetch CAPTCHA, segmentasi glyph
-├── solver_ocr.py             # Tesseract OCR (multi-resep voting)
+├── solver_gemini.py          # PRIMARY: Gemini Vision API CAPTCHA solver
+├── solver_ocr.py             # Tesseract OCR (fallback)
 ├── font_solver.py            # Font rendering + IoU (juga dipakai synth)
 ├── captcha_solver.py         # GlyphSolver: template matching glyph_dict.json
 ├── soft_char.py              # SoftmaxChar classifier
-├── char_solver.py            # UltimateSolver ensemble (dipakai login)
+├── char_solver.py            # UltimateSolver ensemble (fallback lokal)
 ├── datadir.py                # Alias path → config.py (compat script lama)
 │
 │   ── RUNTIME: SIMKULIAH + TELEGRAM ──

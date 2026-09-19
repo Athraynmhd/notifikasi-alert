@@ -26,7 +26,9 @@ Otomasi absensi kuliah di **SIMKULIAH USK**: solve CAPTCHA login → cek status 
 |-----------|--------|--------|
 | Channel notifikasi | **Telegram saja** | User menolak ntfy/SMS untuk sekarang |
 | Mode absen CI | **`confirm` hardcode** di workflow | User **tidak mau full auto**; absen hanya jika tekan tombol di Telegram |
-| Runtime produksi | **Windows Task Scheduler lokal** | GitHub-hosted runner **timeout** ke simkuliah.usk.ac.id (Sep 2026) |
+| Runtime produksi | **Windows Task Scheduler lokal** (saat ini Disabled) | GitHub-hosted timeout ke SIMKULIAH |
+| CAPTCHA solver | **Gemini Vision API** (`solver_gemini.py`, primary) | Lokal (glyph/OCR) jadi fallback |
+| Model default | `gemini-3.1-flash-lite` | Env: `GEMINI_MODEL`, key: `GEMINI_API_KEY` |
 | Cron GitHub Actions | **Dimatikan** (manual `workflow_dispatch` saja) | Diganti `scripts/local_notify.ps1` |
 | ntfy (`REF/ntfy`) | **Tidak diintegrasikan** | Hanya referensi; bukan SMS; tidak ganti tombol confirm |
 | Multi-user | Belum | Single NIM via secrets |
