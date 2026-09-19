@@ -29,6 +29,8 @@ Otomasi absensi kuliah di **SIMKULIAH USK**: solve CAPTCHA login → cek status 
 | Runtime produksi | **Windows Task Scheduler lokal** (saat ini Disabled) | GitHub-hosted timeout ke SIMKULIAH |
 | CAPTCHA solver | **Gemini Vision API** (`solver_gemini.py`, primary) | Lokal (glyph/OCR) jadi fallback |
 | Model default | `gemini-3.1-flash-lite` | Env: `GEMINI_MODEL`, key: `GEMINI_API_KEY` |
+| Deteksi OPEN | **Kolom Batas Absen** (`absensi_meta.py`) | Jam terisi = dosen sudah absen; \"Dosen belum absen\" = poll/refresh |
+| Tombol Absen Telegram | Hanya jika Batas Absen = jam **dan** sekarang ≤ batas | Bukan dari keberadaan tombol HTML |
 | Cron GitHub Actions | **Dimatikan** (manual `workflow_dispatch` saja) | Diganti `scripts/local_notify.ps1` |
 | ntfy (`REF/ntfy`) | **Tidak diintegrasikan** | Hanya referensi; bukan SMS; tidak ganti tombol confirm |
 | Multi-user | Belum | Single NIM via secrets |

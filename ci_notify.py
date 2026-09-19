@@ -125,7 +125,26 @@ def main() -> int:
             mahasiswa=a.get('mahasiswa', ''),
         )
 
-        if a.get('state') == 'OPEN' and absen_flow.ada_belum_absen(sesi):
+        from absensi_meta import (
+            SesiAbsensiPage,
+            boleh_kirim_tombol_absen,
+            format_batas_line,
+        )
+        sesi_page = [
+            SesiAbsensiPage(**s) if isinstance(s, dict) else s
+            for s in (a.get('sesi_page') or [])
+        ]
+        boleh, batas_reason, target = boleh_kirim_tombol_absen(
+            state=a.get('state', ''),
+            sesi_page=sesi_page,
+            ada_merah_jadwal=absen_flow.ada_belum_absen(sesi),
+        )
+        batas_line = format_batas_line(target, batas_reason)
+        if batas_line:
+            msg = msg + '\n\n' + batas_line
+
+        if boleh:
+            log.info('Tombol Absen: YA reason=%s batas=%s', batas_reason, getattr(target, 'batas_text', ''))
             exit_code = absen_flow.handle_open_absen(
                 c,
                 msg=msg,
@@ -137,11 +156,14 @@ def main() -> int:
                 mode=mode,
             )
         else:
+            # OPEN tanpa eligibility (sudah absen / lewat batas / dosen belum)
+            if a.get('state') == 'OPEN' and batas_reason == 'expired':
+                log.info('OPEN tapi Batas Absen lewat — kabari tanpa tombol')
             if not tg.send_message(msg, token=token, chat_id=chat):
                 log.error('Gagal kirim Telegram')
                 exit_code = 1
             else:
-                log.info('Telegram terkirim')
+                log.info('Telegram terkirim (tanpa tombol absen, reason=%s)', batas_reason)
     elif changed and not allow_notify:
         log.info('Ada perubahan tapi di luar jam kuliah — simpan state, skip Telegram')
     else:

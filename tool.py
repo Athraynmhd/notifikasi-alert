@@ -15,25 +15,33 @@ import time
 import jadwal
 import simkuliah
 import telegram_notify as tg
+import absensi_meta
 from config import setup_logging
 
 log = logging.getLogger(__name__)
 
 
 def state_of(text: str) -> tuple[str, str]:
-    """Classify the /absensi page into an attendance state."""
+    """Classify /absensi. Prioritas: kolom Batas Absen, lalu heuristik lama."""
+    sesi = absensi_meta.parse_sesi_absensi(text)
+    if sesi:
+        st, detail = absensi_meta.state_from_batas(sesi)
+        if st != 'UNKNOWN':
+            return st, detail
+
     txt = re.sub(r'<script.*?</script>', ' ', text, flags=re.S)
     txt = re.sub(r'<[^>]+>', ' ', txt)
     txt = H.unescape(txt)
     txt = ' '.join(txt.split())
     lower = txt.lower()
-    if 'belum masuk waktu absen' in lower:
+    if 'belum masuk waktu absen' in lower or 'dosen belum absen' in lower:
         return 'NOT_OPEN', 'Dosen belum absen / belum masuk waktu absen'
+    if 'anda sudah absen' in lower and 'btn-absen' not in text.lower() and 'do_absen' not in text.lower():
+        return 'NOT_OPEN', 'Anda sudah absen'
+    # Tombol saja TIDAK cukup (bisa muncul meski dosen belum absen)
     if 'btn-absen' in text.lower() or 'do_absen' in text.lower():
-        if 'belum masuk waktu' not in lower:
-            return 'OPEN', 'Dosen sudah membuka absen (tombol absen tersedia)'
-    if 'masuk' in lower and 'absen' in lower and 'belum' not in lower:
-        return 'OPEN', 'Jendela absen aktif (bisa absen)'
+        if 'belum masuk waktu' not in lower and 'dosen belum absen' not in lower:
+            return 'OPEN', 'Tombol absen tersedia (fallback tanpa Batas Absen)'
     return 'UNKNOWN', txt[:180]
 
 
@@ -50,15 +58,21 @@ def extract_mahasiswa(html: str) -> str:
 
 
 def report(client: simkuliah.SIMKULIAH, show_pages: bool = True) -> dict:
-    """Kumpulkan status absensi + jadwal hari ini."""
+    """Kumpulkan status absensi + jadwal hari ini + meta Batas Absen."""
     out: dict = {}
     r = client.get('/absensi')
     st, detail = state_of(r.text)
+    sesi_page = absensi_meta.parse_sesi_absensi(r.text)
+    target, batas_reason = absensi_meta.pilih_sesi_bisa_absen(sesi_page)
     out['absensi'] = {
         'state': st,
         'detail': detail,
         'http': r.status_code,
         'mahasiswa': extract_mahasiswa(r.text),
+        'sesi_page': [s.to_dict() for s in sesi_page],
+        'batas_reason': batas_reason,
+        'batas_aktif': target.to_dict() if target and batas_reason == 'within_batas' else None,
+        'batas_expired': target.to_dict() if target and batas_reason == 'expired' else None,
     }
     try:
         sesi = jadwal.fetch_hari_ini(client)
@@ -146,6 +160,13 @@ def cmd_status(args: argparse.Namespace) -> None:
         print('=== STATUS ABSENSI ===')
         print(f"absensi          : {a['state']}  (HTTP {a['http']})")
         print(f"detail           : {a['detail']}")
+        if a.get('batas_reason'):
+            print(f"batas_reason     : {a['batas_reason']}")
+        for s in a.get('sesi_page') or []:
+            print(
+                f"  batas page     : jam={s.get('jam')} batas={s.get('batas_text')} "
+                f"sudah={s.get('sudah_absen')} dosen_belum={s.get('dosen_belum_absen')}"
+            )
         print(f"jadwal hari ini  : {len(sesi)} sesi (urut jam)")
         for s in sesi:
             print(f"  [{s.warna or '?'}] {s.jam} | {s.mata_kuliah} | {s.status_absen} | {s.dosen}")

@@ -1,33 +1,56 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Runner lokal absensi SIMKULIAH (pengganti cron GitHub Actions).
+  Runner lokal absensi SIMKULIAH — hanya di jendela jam kuliah Anda.
 
 .DESCRIPTION
-  - Skip otomatis di luar Senin–Sabtu 07:00–18:59 WIB
-  - Load secrets dari .env di root repo
+  - Skip kecuali Kamis/Jumat/Sabtu sesuai data/jadwal_windows.json (+ buffer)
+  - Load secrets dari .env
   - Jalankan ci_notify.py
   - Log ke data/local_notify.log
 
-  Dipakai Task Scheduler: SIMKULIAH-Absensi-Notify
+  Task: SIMKULIAH-Absensi-Notify (tiap 1 menit, silent)
 #>
 
 $ErrorActionPreference = 'Stop'
 
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 if (-not (Test-Path (Join-Path $Root 'ci_notify.py'))) {
-    # fallback: script dijalankan dari root
     $Root = (Get-Location).Path
 }
-
 Set-Location $Root
 
-# ---- jendela jam (WIB = local time PC Anda) ----
-$now = Get-Date
-$dow = [int]$now.DayOfWeek  # 0=Sunday .. 6=Saturday
-if ($dow -eq 0) { exit 0 }  # Minggu off
-$hour = $now.Hour
-if ($hour -lt 7 -or $hour -ge 19) { exit 0 }
+function Get-Minutes([string]$hhmm) {
+    $p = $hhmm.Split(':')
+    return ([int]$p[0]) * 60 + [int]$p[1]
+}
+
+function Test-InClassWindow {
+    $path = Join-Path $Root 'data\jadwal_windows.json'
+    if (-not (Test-Path $path)) { return $false }
+    $cfg = Get-Content $path -Raw -Encoding UTF8 | ConvertFrom-Json
+    $buffer = 15
+    if ($null -ne $cfg.buffer_menit) { $buffer = [int]$cfg.buffer_menit }
+
+    $now = Get-Date
+    $dow = [int]$now.DayOfWeek  # 0=Minggu .. 6=Sabtu
+    $nowMin = $now.Hour * 60 + $now.Minute
+
+    foreach ($w in $cfg.windows) {
+        if ([int]$w.dow -ne $dow) { continue }
+        $start = (Get-Minutes ([string]$w.start)) - $buffer
+        $end = Get-Minutes ([string]$w.end)
+        if ($nowMin -ge $start -and $nowMin -le $end) {
+            return $true
+        }
+    }
+    return $false
+}
+
+# ---- gate: hanya jam kuliah Anda ----
+if (-not (Test-InClassWindow)) {
+    exit 0
+}
 
 # ---- load .env ----
 $envFile = Join-Path $Root '.env'
@@ -43,7 +66,6 @@ Get-Content $envFile -Encoding UTF8 | ForEach-Object {
     if ($i -lt 1) { return }
     $k = $line.Substring(0, $i).Trim()
     $v = $line.Substring($i + 1).Trim()
-    # strip optional quotes
     if (($v.StartsWith('"') -and $v.EndsWith('"')) -or ($v.StartsWith("'") -and $v.EndsWith("'"))) {
         $v = $v.Substring(1, $v.Length - 2)
     }
@@ -80,7 +102,7 @@ function Write-Log([string]$msg) {
     Add-Content -Path $logFile -Value $line -Encoding UTF8
 }
 
-Write-Log "START python=$Python mode=$($env:ABSEN_MODE)"
+Write-Log "START in-window python=$Python mode=$($env:ABSEN_MODE)"
 try {
     $p = Start-Process -FilePath $Python -ArgumentList 'ci_notify.py' `
         -WorkingDirectory $Root -Wait -PassThru -NoNewWindow `
@@ -88,7 +110,6 @@ try {
         -RedirectStandardError (Join-Path $logDir 'local_notify_stderr.txt')
     $code = $p.ExitCode
     Write-Log "END exit=$code"
-    # append stdout/stderr tails to main log
     foreach ($f in @('local_notify_stdout.txt', 'local_notify_stderr.txt')) {
         $fp = Join-Path $logDir $f
         if (Test-Path $fp) {

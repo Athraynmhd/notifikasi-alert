@@ -5,7 +5,7 @@
 
 .DESCRIPTION
   Task name: SIMKULIAH-Absensi-Notify
-  Trigger: setiap 5 menit (script sendiri skip di luar Senin–Sabtu 07–19)
+  Trigger: setiap 1 menit (script sendiri skip di luar Senin–Sabtu 07–19)
   Launcher: wscript + VBS (tanpa flash CMD/PowerShell)
 #>
 
@@ -28,7 +28,7 @@ $action = New-ScheduledTaskAction `
     -WorkingDirectory $Root
 
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).Date `
-    -RepetitionInterval (New-TimeSpan -Minutes 5) `
+    -RepetitionInterval (New-TimeSpan -Minutes 1) `
     -RepetitionDuration (New-TimeSpan -Days 9999)
 
 $settings = New-ScheduledTaskSettingsSet `
@@ -50,9 +50,9 @@ Register-ScheduledTask `
     -Trigger $trigger `
     -Settings $settings `
     -Principal $principal `
-    -Description 'SIMKULIAH absensi notify lokal (silent). Skip Minggu & di luar 07-19.' `
+    -Description 'SIMKULIAH absensi notify lokal (silent, 1 menit). Hanya Kamis/Jumat/Sabtu sesuai jadwal_windows.json.' `
     -Force | Out-Null
 
-Write-Host "OK: Task '$TaskName' silent terpasang."
+Write-Host "OK: Task '$TaskName' silent terpasang (interval 1 menit)."
 Write-Host "  Launcher: $Vbs"
 Write-Host "  Script  : $Ps1"

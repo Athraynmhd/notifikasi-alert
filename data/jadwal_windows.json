@@ -1,0 +1,48 @@
+{
+  "buffer_menit": 15,
+  "timezone_note": "WIB = jam lokal PC",
+  "windows": [
+    {
+      "dow": 4,
+      "dow_name": "Kamis",
+      "start": "10:00",
+      "end": "12:30",
+      "label": "Pemrograman untuk Sains Data dan KA"
+    },
+    {
+      "dow": 5,
+      "dow_name": "Jumat",
+      "start": "10:45",
+      "end": "12:25",
+      "label": "Praktikum Pemrograman"
+    },
+    {
+      "dow": 5,
+      "dow_name": "Jumat",
+      "start": "16:35",
+      "end": "18:15",
+      "label": "Metode Penelitian"
+    },
+    {
+      "dow": 6,
+      "dow_name": "Sabtu",
+      "start": "08:00",
+      "end": "10:30",
+      "label": "Manajemen dan Pemodelan Data"
+    },
+    {
+      "dow": 6,
+      "dow_name": "Sabtu",
+      "start": "09:50",
+      "end": "11:30",
+      "label": "Praktikum Pemrograman"
+    },
+    {
+      "dow": 6,
+      "dow_name": "Sabtu",
+      "start": "14:00",
+      "end": "16:30",
+      "label": "Kecerdasan Artificial"
+    }
+  ]
+}

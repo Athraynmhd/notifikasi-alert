@@ -34,11 +34,17 @@ def get_absen_mode(raw: Optional[str] = None) -> str:
 def fingerprint(info: dict) -> str:
     a = info.get('absensi', {})
     jadwal_list = info.get('jadwal_hari_ini', [])
+    sesi_page = a.get('sesi_page') or []
     parts = [
         a.get('state', ''),
+        a.get('batas_reason', ''),
         *(
             f"{j.get('kode')}|{j.get('warna')}|{j.get('jam')}|{j.get('status_absen')}"
             for j in jadwal_list
+        ),
+        *(
+            f"B|{s.get('jam')}|{s.get('batas_text')}|{int(bool(s.get('sudah_absen')))}"
+            for s in sesi_page
         ),
     ]
     return '||'.join(parts)
